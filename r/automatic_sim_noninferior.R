@@ -213,9 +213,7 @@ simulate_scenario_noninf_par <- function(
   doParallel::registerDoParallel(cl)
   on.exit(parallel::stopCluster(cl), add = TRUE)
 
-  res <- foreach(i = seq_len(sims), .export = ex_fun, .packages = ex_pkg) %dopar% {
-    simulate_trial_noninf(...)
-  }
+  res <- foreach(i = seq_len(sims), .export = ex_fun, .packages = ex_pkg) %dopar% simulate_trial_noninf(...)
   return(res)
 }
 
