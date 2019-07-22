@@ -124,6 +124,12 @@ prob_in_best <- function(mat, A, ...) {
   prob_best(mat %*% t(A))
 }
 
+# Rank each row and return probability of each rank
+prob_rank <- function(mat) {
+  k <- ncol(mat)
+  apply(apply(apply(mat, 1, function(x) rank(-x)), 1, function(z) table(factor(z, levels = 1:k))), 2, prop.table)
+}
+
 # Probability that each column in mat
 # is noninferior to colvec_best
 # by the margin eps
