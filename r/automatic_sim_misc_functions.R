@@ -6,6 +6,12 @@ library(mvtnorm)
 library(doParallel)
 library(Matrix)
 
+
+# Sim dat
+sim_arm_dat <- function(n, p) {
+  data.frame(x = 1:length(p), n = n, p = p, y = rbinom(length(p), n, p))
+}
+
 # Generate random treatment allocations
 # according to mass weighted urn design
 mass_weighted_urn_design <- function(

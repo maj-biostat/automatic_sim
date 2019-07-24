@@ -57,6 +57,7 @@ simulate_trial_noninf <- function(
   i_non <- NULL
   i_best <- rep(0, n_interims)
   is_best <- matrix(0, n_interims, n_arms)
+  is_non <- rep(0, n_arms)
   is_worse_than_ctrl <- matrix(0, n_interims, n_arms - 1)
   is_noninferior_to_best <- matrix(0, n_interims, n_arms)
   is_competing <- matrix(1, n_interims + 1, n_arms)
@@ -142,8 +143,10 @@ simulate_trial_noninf <- function(
     # Which is superior or which are noninferior
     if(superior)
       i_sup <- which(is_best[i, ] == 1)
-    if(noninferior)
+    if(noninferior) {
       i_non <- which(is_competing[i + 1, ] == 1)
+      is_non <- is_competing[i + 1, ] == 1
+    }
 
     if(i < n_interims) {
 
@@ -161,6 +164,7 @@ simulate_trial_noninf <- function(
           p_noninferior = p_noninferior[1:i],
           i_best = i_best[1:i],
           is_best = is_best[1:i, , drop = F],
+          is_non = is_non,
           is_worse_than_ctrl = is_worse_than_ctrl[1:i, , drop = F],
           is_competing = is_competing[1:(i+1), , drop = F],
           mu = mu[1:i, , drop = F],
@@ -185,6 +189,7 @@ simulate_trial_noninf <- function(
     p_noninferior = p_noninferior,
     i_best = i_best,
     is_best = is_best,
+    is_non = is_non,
     is_worse_than_ctrl = is_worse_than_ctrl,
     is_competing = is_competing,
     mu = mu,
@@ -208,6 +213,7 @@ simulate_scenario_noninf_par <- function(
               "prob_best", "prob_in_best", "est_model_approx", "prob_all_noninferior",
               "control_comp", "update_alloc", "prob_all_equivalent")
   ex_pkg <- c("mvtnorm", "varapproxr", "Matrix")
+
   ncores <- parallel::detectCores() - 1
   cl <- parallel::makeCluster(ncores)
   doParallel::registerDoParallel(cl)
@@ -217,16 +223,27 @@ simulate_scenario_noninf_par <- function(
   return(res)
 }
 
+
 summarise_scenario_noninf <- function(sim) {
-  the_best <- which(sim[[1]][["p"]] == max(sim[[1]][["p"]]))
+  if(max(sim[[1]][["p"]]) == min(sim[[1]][["p"]])) {
+    the_best <- NULL
+  } else {
+    the_best <- which(sim[[1]][["p"]] == max(sim[[1]][["p"]]))
+  }
   any_noninf <- any(sapply(sim, function(x) x[["noninferior"]]))
+  any_sup <- any(sapply(sim, function(x) x[["superior"]]))
   if(any_noninf) {
     avg_num_noninf <- mean(unlist(lapply(sim[unlist(lapply(sim, function(x) x[["noninferior"]]))], function(x) length(x[["i_non"]]))))
     prob_noninf_at_end <-
       apply(do.call(rbind,lapply(sim[unlist(lapply(sim, function(x) x[["noninferior"]]))], function(x) tail(x[["is_competing"]],1))), 2, mean)
+    prob_a_best_in_noninf <- mean(sapply(sim[sapply(sim, function(x) x[["noninferior"]])], function(x) any(the_best %in% x[["i_non"]])))
+    prob_a_non_best_in_noninf <- mean(sapply(sim[sapply(sim, function(x) x[["noninferior"]])], function(x) any(!x[["i_non"]] %in% the_best)))
   } else {
     prob_noninf_at_end <- NA
     avg_num_noninf <- NA
+  }
+  if(any_sup) {
+    prob_one_of_best_is_sup <- mean(sapply(sim[sapply(sim, function(x) x[["superior"]])], function(x) any(the_best %in% x[["i_sup"]])))
   }
   if(length(the_best) == 1) {
     prob_identify_correct <-
@@ -242,7 +259,12 @@ summarise_scenario_noninf <- function(sim) {
       })))
   }
   list(
+    p = sim[[1]][["p"]],
+    the_best = the_best,
     prob_identify_correct = prob_identify_correct,
+    prob_a_best_in_noninf = prob_a_best_in_noninf,
+    prob_a_non_best_in_noninf = prob_a_non_best_in_noninf,
+    prob_one_of_best_is_sup = prob_one_of_best_is_sup,
     superior =
       mean(sapply(sim, function(x) x[["superior"]])),
     noninferior =
@@ -262,6 +284,8 @@ summarise_scenario_noninf <- function(sim) {
       sum(apply(do.call(rbind, lapply(sim, function(x) x[["is_best"]][nrow(x[["is_best"]]), ])), 2, mean)),
     prob_declare_best =
       apply(do.call(rbind, lapply(sim, function(x) x[["is_best"]][nrow(x[["is_best"]]), ])), 2, mean),
+    prob_declare_noninf =
+      apply(do.call(rbind, lapply(sim, function(x) x[["is_non"]])), 2, mean),
     avg_estimate =
       apply(do.call(rbind, lapply(sim, function(x) tail(x[["mu"]], 1)[1, ])), 2, mean),
     avg_estimate_trans = apply(do.call(rbind, lapply(sim, function(x) plogis(tail(x[["mu"]], 1)[1, ]))), 2, mean),
